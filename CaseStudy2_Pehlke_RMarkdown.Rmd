@@ -1,0 +1,885 @@
+---
+title: "CaseStudy1_Pehlke_ExecutiveSummary"
+author: "Jack"
+date: "2024-10-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+#Our libraries of choice.
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(magrittr)
+library(dplyr)
+library(GGally)
+library(ggplot2)
+library(tidyverse)
+library(plotly)
+library(naniar)
+library(class)
+library(caret)
+library(shiny)
+library(caret)
+```
+
+
+#Loading and Cleaning Our Data
+```{r}
+df_train = read.csv(file.choose(),header = TRUE)
+df_train
+df_train <- df_train[!is.na(df_train$type), ]
+df_train$location <- gsub("Califormia", "California", df_train$location)
+```
+
+#Modeling Based on Our Important Variables
+```{r}
+model1 = lm(quality~density+alcohol+volatile.acidity+free.sulfur.dioxide+sulphates, data = df_train)
+summary(model1)
+confint(model1)
+preds1 = predict(model1, newdata = df_train)
+df_train$predicted.quality = preds1
+as.data.frame(preds1)
+```
+
+#Calculating our MAE
+```{r}
+MSPE1 = data.frame(Observed = df_train$quality, Predicted = preds1)
+MSPE1$Residual = MSPE1$Observed - MSPE1$Predicted
+MSPE1
+MAE1 = mean(abs(MSPE1$Residual))
+MAE1
+
+```
+
+#Cross Validations/MAE Testing
+
+```{r}
+#Separating into Test/Train sets from original data
+set.seed(4)
+TrainObs = sample(seq(1,dim(df_train)[1]),round(.75*dim(df_train)[1]),replace = FALSE)
+QTrain = df_train[TrainObs,]
+QTrain
+QTest = df_train[-TrainObs,]
+QTest
+
+# Fit the model on the training data (QTrain)
+model2 <- lm(quality ~ density+alcohol+volatile.acidity+free.sulfur.dioxide+sulphates, data = QTrain)
+
+# Predict on the training set
+train_predictions <- predict(model, newdata = QTrain)
+
+# Calculate the training MAE
+train_mae <- mean(abs(train_predictions - QTrain$quality))
+
+# Predict on the test set
+test_predictions <- predict(model, newdata = QTest)
+
+# Calculate the test MAE
+test_mae <- mean(abs(test_predictions - QTest$quality))
+
+# Print both MAEs for comparison
+print(paste("Training MAE: ", train_mae))
+print(paste("Test MAE: ", test_mae))
+
+#both are around the same we had for the MAE with the full dataset, so we are okay
+```
+
+#Test Predictions/Saving Our Data
+
+```{r}
+test_predictions <- predict(model, newdata = df_test)
+df_test$predicted_quality <- test_predictions
+wine_test_csv = df_test[,c("ID", "predicted_quality")]
+print(wine_test_csv, row.names = FALSE)
+print(test_predictions)
+names(df_test)
+write.csv(wine_test_csv, "We did this on our local PC", row.names = FALSE)
+
+
+#both are around the same we had for the MAE with the full dataset, so we are okay
+```
+
+#EDA/Visualization - Including Linear Relationships, Random Forest Model, and Splitting Into High/Medium/Low Quality scores
+
+```{r}
+#EDA TIME
+#Residual Sugar vs Alcohol
+df %>% ggplot(mapping = aes(x = residual.sugar, y = alcohol)) +
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+labs(title = "Residual Sugar vs Alcohol") + 
+     xlab("Residual Sugar") + ylab("Alcohol") + theme_excel_new() + theme(axis.title = element_text())
+
+#Density vs Alcohol
+df %>% ggplot(mapping = aes(x = density, y = alcohol)) +
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Density vs Alcohol") + 
+  xlab("Density") + ylab("Alcohol") + theme_excel_new() + theme(axis.title = element_text())
+
+
+#Fixed Acidity vs Volatile Acidity - positive correlation
+df %>% ggplot(mapping = aes(x = fixed.acidity, y = volatile.acidity)) +
+  geom_point() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Scatterplot of Fixed vs Volatile Acidity",
+       x = "Fixed Acidity",
+       y = "Volatile Acidity")
+
+#Citric Acid vs Residual Sugar - positive correlation
+df %>% ggplot(mapping = aes(x = citric.acid, y = residual.sugar)) + 
+  geom_point() + geom_smooth(method = "lm", col = "purple")
+  labs(title = "Scatterplot of Citri Acid vs Residual Sugar",
+       x = "Citric Acid",
+       y = "Residual Sugar")
+  
+#Free Sulfur Dioxide vs Total Sulfur Dioxide - positive correlation
+df %>% ggplot(mapping = aes(x = free.sulfur.dioxide, y = total.sulfur.dioxide)) + 
+    geom_point() + geom_smooth(method = "lm", col = "purple")
+  labs(title = "Scatterplot of Sulfur Dioxide Levels (Free vs Total)",
+       x = "Free SD",
+       y = "Total SD")
+  
+#Sulphates vs Chlorides - positive correlation
+df %>% ggplot(mapping = aes(x = sulphates, y = chlorides)) + 
+    geom_point() + geom_smooth(method = "lm", col = "purple")
+  labs(title = "Scatterplot of Sulphates vs Chlorides",
+       x = "Sulphates",
+       y = "Chlorides")
+
+#Alcohol vs pH - no real correlation. generally positive, but all pH hovers between 2.5 - 4.1 on the extremes
+df %>% ggplot(mapping = aes(x = alcohol, y = pH)) + 
+    geom_point() + geom_smooth(method = "lm", col = "purple")
+  labs(title = "Scatterplot of Alcohol vs pH",
+       x = "Alcohol",
+       y = "pH")
+  
+#Quality vs pH
+  df %>% ggplot(mapping = aes(x = pH, y = quality)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Scatterplot of Quality vs pH",
+       x = "pH",
+       y = "Quality")
+
+  # 1. Quality vs Fixed Acidity - slight negative correlation. majority of points fall in the 5 or 6 score. most fixed acidity scores are around 6-8. 
+  df %>% ggplot(mapping = aes(x = quality, y = fixed.acidity)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Scatterplot of Quality vs Fixed Acidity",
+         x = "Quality",
+         y = "Fixed Acidity")
+  
+  # 2. Quality vs Volatile Acidity - fair to say there's a negative correlation with quality and volatile acidity. 
+  df %>% ggplot(mapping = aes(x = quality, y = volatile.acidity)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Scatterplot of Quality vs Volatile Acidity",
+         x = "Quality",
+         y = "Volatile Acidity")
+  
+  # 3. Quality vs Citric Acid - positive correlation
+  df %>% ggplot(mapping = aes(x = quality, y = citric.acid)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Scatterplot of Quality vs Citric Acid",
+         x = "Quality",
+         y = "Citric Acid")
+  
+  # 4. Quality vs Residual Sugar - negative correlation
+  df %>% ggplot(mapping = aes(x = quality, y = residual.sugar)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Jitterplot of Quality vs Residual Sugar",
+         x = "Quality",
+         y = "Residual Sugar")
+  
+  # 5. Quality vs Chlorides - negative correlation
+  df %>% ggplot(mapping = aes(x = quality, y = chlorides)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Scatterplot of Quality vs Chlorides",
+         x = "Quality",
+         y = "Chlorides")
+  
+  # 6. Quality vs Free Sulfur Dioxide - minor positive correlation
+  df %>% ggplot(mapping = aes(x = quality, y = free.sulfur.dioxide)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +  # Linear trend line
+    geom_smooth(method = "loess", se = FALSE, color = "green") +
+    labs(title = "Scatterplot of Quality vs Free Sulfur Dioxide",
+         x = "Quality",
+         y = "Free Sulfur Dioxide")
+  
+  # 7. Quality vs Total Sulfur Dioxide - negative correlation generally
+  df %>% ggplot(mapping = aes(x = quality, y = total.sulfur.dioxide)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Scatterplot of Quality vs Total Sulfur Dioxide",
+         x = "Quality",
+         y = "Total Sulfur Dioxide")
+  
+  # 8. Quality vs Density - strong negative correlation
+  df %>% ggplot(mapping = aes(x = quality, y = density)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Scatterplot of Quality vs Density",
+         x = "Quality",
+         y = "Density")
+  
+  # 9. Quality vs pH (already provided) - minor positive correlation
+  df %>% ggplot(mapping = aes(x = quality, y = pH)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Scatterplot of Quality vs pH",
+         x = "Quality",
+         y = "pH")
+  
+  # 10. Quality vs Sulphates - minor positive correlation
+  df %>% ggplot(mapping = aes(x = quality, y = sulphates)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Scatterplot of Quality vs Sulphates",
+         x = "Quality",
+         y = "Sulphates")
+  
+  # 11. Quality vs Alcohol - very strong positive correlation
+  df %>% ggplot(mapping = aes(x = quality, y = alcohol)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Jitterplot of Quality vs Alcohol",
+         x = "Quality",
+         y = "Alcohol") + theme_excel_new() + theme(axis.title = element_text())
+  
+  # 12a. Quality vs Type - many more whites.generally more prevalent at higher quality metrics
+  df %>% ggplot(mapping = aes(x = quality, fill = type)) + 
+    geom_bar(position = "dodge")  +
+    labs(title = "Bar Graph of Quality vs Type",
+         x = "Quality",
+         y = "Type")
+  
+  # 12b. Quality vs Type - whites generally a higher quality in percentage. 
+  df %>% ggplot(mapping = aes(x = quality, fill = type)) + 
+    geom_bar(position = "fill")  +
+    labs(title = "Bar Graph of Quality vs Type",
+         x = "Quality",
+         y = "Type")
+  
+  # 13a. Quality vs Location - generally, CA is stronger in percentage of higher quality wines. texas is stronger in lower quality 
+  df %>% ggplot(mapping = aes(x = quality, fill = location)) + 
+    geom_bar(position = "fill")  +
+    labs(title = "Bar Chart of Quality vs Location",
+         x = "Quality",
+         y = "Location")
+  
+  # 13b. Quality vs Location - generally, CA is stronger in terms of quality and quantity. most come around 6. 8's they're about even which is interesting 
+  df %>% ggplot(mapping = aes(x = quality, fill = location)) + 
+    geom_bar(position = "dodge")  +
+    labs(title = "Quality vs Location",
+         x = "Quality",
+         y = "Location")
+  
+  # 14. Quality vs Quality (self-comparison)
+  df %>% ggplot(mapping = aes(x = quality, y = quality)) + 
+    geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+    labs(title = "Scatterplot of Quality vs Quality",
+         x = "Quality",
+         y = "Quality")
+
+summary(df)
+#findings: the highest alcohol also has the highest fixed acidity
+#289 (most sulfur dioxide) is a 3. above 50 free sulfur dioxide is an interesting one
+df
+
+#creating a dataset of just the continuous ones for correlation matrix
+str(df)
+cor(df_cont)
+df_cont <- df2 %>% select (-ID) %>% select_if(~ !is.factor(.) & !is.character(.))
+df_cont
+
+#interaction terms
+df_cont$SD <- df_cont$free.sulfur.dioxide*df$total.sulfur.dioxide
+df_cont$FSD_S <- df_cont$sulphates * df_cont$free.sulfur.dioxide
+
+#splitting type and location into related dataframes
+#Convert "type" to binary (1 for "white", 0 for "red")
+Winedatamerged <- df %>% mutate(typenumber = ifelse(type == "white", 1, 0))
+df2 <- Winedatamerged %>% mutate(locationnumber = ifelse(location == "Texas", 1, 0))
+#Split data frame by 'Type'
+df_white <- df2 %>% filter(type == "white")
+df_red <- df2 %>% filter(type == "red")
+df_California <- df2 %>% filter(location == "California")
+df_Texas <- df2 %>% filter(location == "Texas")
+print(df_white)
+print(df_red)
+print(df_Texas)
+print(df_California)
+
+df_Texas_cont <- df_Texas %>% select (-ID) %>% select_if(~ !is.factor(.) & !is.character(.))
+df_California_cont <- df_California %>% select (-ID) %>% select_if(~ !is.factor(.) & !is.character(.))
+df_white_cont <- df_white %>% select (-ID) %>% select_if(~ !is.factor(.) & !is.character(.))
+df_red_cont <- df_red %>% select (-ID) %>% select_if(~ !is.factor(.) & !is.character(.))
+
+cor(df_Texas_cont)
+cor(df_California_cont)
+cor(df_white_cont)
+cor(df_red_cont)
+
+#creating datasets for high/med/low quality
+df$high_quality <- ifelse(df$quality > 6.25, 1, 0)
+df$med_quality <- ifelse(df$quality >= 5 & df$quality <= 6.25, 1 ,0)
+df$low_quality <- ifelse(df$quality<5, 1,0)
+df_HQ <- df[df$high_quality == 1, ]
+df_MQ <- df[df$med_quality == 1, ]
+df_LQ <- df[df$low_quality == 1, ]
+
+df_cont$high_quality <- ifelse(df_cont$quality > 6.25, 1, 0)
+df_cont$med_quality <- ifelse(df_cont$quality >= 5 & df_cont$quality <= 6.25, 1 ,0)
+df_cont$low_quality <- ifelse(df_cont$quality < 5, 1, 0)
+
+
+df_HQ_cont <- df_cont[df_cont$high_quality == 1, ]
+df_MQ_cont <- df_cont[df_cont$med_quality == 1, ]
+df_LQ_cont <- df_cont[df_cont$low_quality == 1, ]
+
+#Correlation Matrices
+str(df_HQ_cont)
+str(df_MQ_cont)
+str(df_LQ_cont)
+
+All_Cor = cor(df_cont)
+HQ_Cor = cor(df_HQ_cont)
+MQ_Cor = cor(df_MQ_cont)
+LQ_Cor = cor(df_LQ_cont)
+
+str(df2)
+
+df$location = factor(df2$location)
+df$type = factor(df2$type)
+
+#linear regression model
+model <- lm(quality ~ alcohol + density + volatile.acidity + fixed.acidity + citric.acid + residual.sugar + chlorides + 
+              free.sulfur.dioxide + total.sulfur.dioxide + density + pH + sulphates + type + location , data = df_vif)
+df_vif <- df %>% select(-ID)
+summary(model)
+#install.packages("car")
+#library(car)
+vif(model)
+
+str(df)
+
+df
+
+#Random Forest
+
+set.seed(123)
+rf_model <- randomForest(quality ~ ., data = df)
+importance(rf_model)
+order_RF = importance(rf_model)
+order = data.frame(Feature = rownames(order_RF), Importance = order_RF[,1])
+order <- order[!rownames(order) %in% "Quality", ]
+ggplot(order, aes(x = reorder(Feature, Importance), y = Importance)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Feature Importance", x = "Features", y = "Importance Score")
+
+#Random Forest - Texas
+df_Texas
+set.seed(124)
+rf_model_Texas <- randomForest(quality ~ ., data = df_Texas)
+importance(rf_model_Texas)
+order_RF_Texas = importance(rf_model_Texas)
+order_Texas = data.frame(Feature = rownames(order_RF_Texas), Importance = order_RF_Texas[,1])
+order_Texas <- order_Texas[!rownames(order_Texas) %in% "Quality", ]
+ggplot(order_Texas, aes(x = reorder(Feature, Importance), y = Importance)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Feature Importance", x = "Features", y = "Importance Score")
+
+
+#Random Forest - Red
+df_red
+set.seed(125)
+rf_model_red <- randomForest(quality ~ ., data = df_red)
+importance(rf_model_red)
+order_RF_red = importance(rf_model_red)
+order_red = data.frame(Feature = rownames(order_RF_red), Importance = order_RF_red[,1])
+order_red <- order_red[!rownames(order_red) %in% "quality", ]
+ggplot(order_red, aes(x = reorder(Feature, Importance), y = Importance)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Feature Importance of Red", x = "Features", y = "Importance Score")
+
+#Random Forest - Red
+df_white
+set.seed(126)
+rf_model_white <- randomForest(quality ~ ., data = df_white)
+importance(rf_model_white)
+order_RF_white = importance(rf_model_white)
+order_white = data.frame(Feature = rownames(order_RF_white), Importance = order_RF_white[,1])
+order_white <- order_white[!rownames(order_white) %in% "quality", ]
+ggplot(order_white, aes(x = reorder(Feature, Importance), y = Importance)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Feature Importance of White", x = "Features", y = "Importance Score")
+
+cor(df_white_cont)
+cor(df_red_cont)
+
+
+
+
+predict(rf_model, df)
+confusion_matrix <- table(Actual = df$quality, Predicted = predict(rf_model, df))
+confusion_matrix
+
+
+
+
+#Free Sulfur Dioxide
+df_white %>% ggplot(mapping = aes(x = quality, y = free.sulfur.dioxide)) + 
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +  # Linear trend line
+  geom_smooth(method = "loess", se = FALSE, color = "green") +
+  labs(title = "Scatterplot of White Quality vs Free Sulfur Dioxide",
+       x = "Quality",
+       y = "Free Sulfur Dioxide")
+
+FSD_white <- df[df_white$free.sulfur.dioxide >= 50, ]
+FSD_white
+
+
+#location visualization
+# all - Quality vs Location - generally, CA is stronger in percentage of higher quality wines. texas is stronger in lower quality 
+df %>% ggplot(mapping = aes(x = quality, fill = location)) + 
+  geom_bar(position = "fill")  +
+  labs(title = "All Wines Quality vs Location",
+       x = "Quality",
+       y = "Location") + theme_excel() + scale_fill_excel_new()
+
+# all - Quality vs Location - generally, CA is stronger in terms of quality and quantity. most come around 6. 8's they're about even which is interesting 
+df %>% ggplot(mapping = aes(x = quality, fill = location)) + 
+  geom_bar(position = "dodge")  +
+  labs(title = "All Wines Quality vs Location",
+       x = "Quality",
+       y = "Location") + theme_excel() + scale_fill_excel_new()
+
+# red Quality vs Location - generally CA consistently has a higher % of better quality wines
+df_red %>% ggplot(mapping = aes(x = quality, fill = location)) + 
+  geom_bar(position = "fill")  +
+  labs(title = "Red Wine Quality vs Location",
+       x = "Quality",
+       y = "Location") + theme_excel_new() + scale_fill_excel_new()
+
+# red Quality vs Location - CA's got better reds by a large margin
+df_red %>% ggplot(mapping = aes(x = quality, fill = location)) + 
+  geom_bar(position = "dodge")  +
+  labs(title = "Red Wine Quality vs Location",
+       x = "Quality",
+       y = "Location") + theme_excel_new() + scale_fill_excel_new()
+
+# white Quality vs Location - CA consistently better except for that 8! they've got all the 9's and all the 9's are white wines
+df_white %>% ggplot(mapping = aes(x = quality, fill = location)) + 
+  geom_bar(position = "fill")  +
+  labs(title = "White Wine Quality vs Location",
+       x = "Quality",
+       y = "Location") + theme_excel_new() + scale_fill_excel_new()
+
+# white Quality vs Location - that 8 score is interesting. generally CA still dominates, but it's close at the highest levels! 
+df_white %>% ggplot(mapping = aes(x = quality, fill = location)) + 
+  geom_bar(position = "dodge")  +
+  labs(title = "White Wine vs Location",
+       x = "Quality",
+       y = "Location") + theme_excel_new() + scale_fill_excel_new()
+
+
+
+#Correlation Matrices - CHATGPT BIT
+
+# List of rows to drop
+rows_to_drop <- c("SD", "DA", "high_quality", "med_quality", "low_quality", "FSD_PH", "FSD_S")
+
+# Create a function to clean and extract the correlation for 'quality' from a matrix
+extract_quality_corr <- function(cor_matrix, rows_to_drop) {
+  # Remove unwanted rows and columns
+  cor_matrix_clean <- cor_matrix[!(rownames(cor_matrix) %in% rows_to_drop), !(colnames(cor_matrix) %in% rows_to_drop)]
+  
+  # Extract correlation with 'quality'
+  quality_corr <- cor_matrix_clean[, "quality"]
+  
+  return(quality_corr)
+}
+
+# Step 1: Extract the correlation values for 'quality' from each matrix
+HQ_quality_corr <- extract_quality_corr(HQ_Cor, rows_to_drop)
+MQ_quality_corr <- extract_quality_corr(MQ_Cor, rows_to_drop)
+LQ_quality_corr <- extract_quality_corr(LQ_Cor, rows_to_drop)
+All_Corr = extract_quality_corr(All_Cor, rows_to_drop)
+
+# Step 2: Combine the results into a single data frame
+corr_data <- data.frame(
+  Variable = c(names(HQ_quality_corr), names(MQ_quality_corr), names(LQ_quality_corr)),
+  Correlation = c(HQ_quality_corr, MQ_quality_corr, LQ_quality_corr),
+  Dataset = rep(c("HQ_Cor", "MQ_Cor", "LQ_Cor"), 
+                times = c(length(HQ_quality_corr), length(MQ_quality_corr), length(LQ_quality_corr)))
+)
+
+# Step 3: Plot the correlations
+library(ggplot2)
+
+ggplot(corr_data, aes(x = reorder(Variable, Correlation), y = Correlation, fill = Dataset)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +  # Flip the axes for better readability
+  labs(title = "Correlation of Variables with Quality across Datasets",
+       x = "Variables",
+       y = "Correlation with Quality") +
+  theme_minimal() +
+  scale_fill_manual(values = c("steelblue", "forestgreen", "darkorange"))  # Custom colors
+
+
+
+#just for all data
+All_Cor = cor(df_cont)
+# List of rows to drop
+rows_to_drop <- c("SD", "DA", "high_quality", "med_quality", "low_quality", "FSD_PH", "FSD_S")
+
+# Step 1: Clean the correlation matrix by removing unwanted rows and columns
+All_Cor_clean <- All_Cor[!(rownames(All_Cor) %in% rows_to_drop), !(colnames(All_Cor) %in% rows_to_drop)]
+
+# Step 2: Extract the correlation values for 'quality'
+quality_corr <- All_Cor_clean[, "quality"]
+
+# Step 3: Convert the correlation values into a data frame for plotting
+corr_data <- data.frame(
+  Variable = names(quality_corr),
+  Correlation = quality_corr
+)
+
+# Step 4: Remove 'quality' from the data frame
+corr_data <- corr_data[corr_data$Variable != "quality", ]
+
+# Step 4: Plot the correlations using ggplot2
+library(ggplot2)
+
+ggplot(corr_data, aes(x = reorder(Variable, Correlation), y = Correlation)) +
+  geom_bar(stat = "identity", fill = "darkviolet") +
+  coord_flip() +  # Flip the axes for better readability
+  labs(title = "Correlation of Variables with Quality",
+       x = "Variables",
+       y = "Correlation with Quality") +
+  theme_minimal() + theme_excel_new() 
+
+#White Wine Correlation
+rows_to_drop <- c("SD", "DA", "high_quality", "med_quality", "low_quality", "FSD_PH", "FSD_S", "typenumber")
+
+# Step 1: Clean the correlation matrix by removing unwanted rows and columns
+White_Cor_clean <- White_Cor[!(rownames(White_Cor) %in% rows_to_drop), !(colnames(White_Cor) %in% rows_to_drop)]
+
+# Step 2: Extract the correlation values for 'quality'
+White_corr <- White_Cor_clean[, "quality"]
+
+# Step 3: Convert the correlation values into a data frame for plotting
+white_corr_data <- data.frame(
+  Variable = names(White_corr),
+  Correlation = White_corr
+)
+
+# Step 4: Remove 'quality' from the data frame
+white_corr_data <- white_corr_data[white_corr_data$Variable != "quality", ]
+
+ggplot(white_corr_data, aes(x = reorder(Variable, Correlation), y = Correlation)) +
+  geom_bar(stat = "identity", fill = "navajowhite") +
+  coord_flip() +  # Flip the axes for better readability
+  labs(title = "White Wine - Correlation of Variables with Quality",
+       x = "Variables",
+       y = "Correlation with Quality") +
+  theme_excel_new() 
+
+#Red Wine Correlation
+rows_to_drop <- c("SD", "DA", "high_quality", "med_quality", "low_quality", "FSD_PH", "FSD_S", "typenumber")
+
+# Step 1: Clean the correlation matrix by removing unwanted rows and columns
+Red_Cor_clean <- Red_Cor[!(rownames(Red_Cor) %in% rows_to_drop), !(colnames(Red_Cor) %in% rows_to_drop)]
+
+# Step 2: Extract the correlation values for 'quality'
+red_corr <- Red_Cor_clean[, "quality"]
+
+# Step 3: Convert the correlation values into a data frame for plotting
+red_corr_data <- data.frame(
+  Variable = names(red_corr),
+  Correlation = red_corr
+)
+
+# Step 4: Remove 'quality' from the data frame
+red_corr_data <- red_corr_data[red_corr_data$Variable != "quality", ]
+
+ggplot(red_corr_data, aes(x = reorder(Variable, Correlation), y = Correlation)) +
+  geom_bar(stat = "identity", fill = "darkred") +
+  coord_flip() +  # Flip the axes for better readability
+  labs(title = "Red Wine - Correlation of Variables with Quality",
+       x = "Variables",
+       y = "Correlation with Quality") +
+   theme_excel_new() 
+
+
+White_Cor = cor(df_white_cont)
+Red_Cor = cor(df_red_cont)
+
+type_rows_to_drop <- c("SD", "DA", "high_quality", "med_quality", "low_quality", "FSD_PH", "FSD_S", "typenumber")
+
+#WHITE WINE QUALITY GRAPHING
+# Step 1: Clean the correlation matrix by removing unwanted rows and columns
+White_Cor_clean <- White_Cor[!(rownames(White_Cor) %in% type_rows_to_drop), !(colnames(White_Cor) %in% type_rows_to_drop)]
+
+# Step 2: Extract the correlation values for 'quality'
+White_quality_corr <- White_Cor_clean[, "quality"]
+
+# Step 3: Convert the correlation values into a data frame for plotting
+White_corr_data <- data.frame(
+  Variable = names(White_quality_corr),
+  Correlation = White_quality_corr
+)
+
+# Step 4: Remove 'quality' from the data frame
+White_corr_data <- White_corr_data[White_corr_data$Variable != "quality", ]
+
+# Step 4: Plot the correlations using ggplot2
+library(ggplot2)
+
+ggplot(White_corr_data, aes(x = reorder(Variable, Correlation), y = Correlation)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +  # Flip the axes for better readability
+  labs(title = "White Wine - Correlation of Variables with Quality",
+       x = "Variables",
+       y = "Correlation with Quality") +
+  theme_minimal()
+
+#RED WINE QUALITY GRAPHING
+# Step 1: Clean the correlation matrix by removing unwanted rows and columns
+Red_Cor_clean <- Red_Cor[!(rownames(Red_Cor) %in% type_rows_to_drop), !(colnames(Red_Cor) %in% type_rows_to_drop)]
+
+# Step 2: Extract the correlation values for 'quality'
+Red_quality_corr <- Red_Cor_clean[, "quality"]
+
+# Step 3: Convert the correlation values into a data frame for plotting
+Red_corr_data <- data.frame(
+  Variable = names(Red_quality_corr),
+  Correlation = Red_quality_corr
+)
+
+# Step 4: Remove 'quality' from the data frame
+Red_corr_data <- Red_corr_data[Red_corr_data$Variable != "quality", ]
+
+# Step 4: Plot the correlations using ggplot2
+library(ggplot2)
+
+ggplot(Red_corr_data, aes(x = reorder(Variable, Correlation), y = Correlation)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +  # Flip the axes for better readability
+  labs(title = "Red Wine - Correlation of Variables with Quality",
+       x = "Variables",
+       y = "Correlation with Quality") +
+  theme_minimal()
+
+
+Texas_Cor = cor(df_Texas_cont)
+#TEXAS WINE QUALITY GRAPHING
+location_rows_to_drop <- c("SD", "DA", "high_quality", "med_quality", "low_quality", "FSD_PH", "FSD_S", "locationnumber")
+# Step 1: Clean the correlation matrix by removing unwanted rows and columns
+Texas_Cor_clean <- Texas_Cor[!(rownames(Texas_Cor) %in% location_rows_to_drop), !(colnames(Texas_Cor) %in% location_rows_to_drop)]
+
+# Step 2: Extract the correlation values for 'quality'
+Texas_quality_corr <- Texas_Cor_clean[, "quality"]
+
+# Step 3: Convert the correlation values into a data frame for plotting
+Texas_corr_data <- data.frame(
+  Variable = names(Texas_quality_corr),
+  Correlation = Texas_quality_corr
+)
+
+# Step 4: Remove 'quality' from the data frame
+Texas_corr_data <- Texas_corr_data[Texas_corr_data$Variable != "quality", ]
+
+# Step 4: Plot the correlations using ggplot2
+library(ggplot2)
+
+ggplot(Texas_corr_data, aes(x = reorder(Variable, Correlation), y = Correlation)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +  # Flip the axes for better readability
+  labs(title = "Texas Wine - Correlation of Variables with Quality",
+       x = "Variables",
+       y = "Correlation with Quality") +
+  theme_minimal()
+CA_Cor = cor(df_California_cont)
+#CA WINE QUALITY GRAPHING
+location_rows_to_drop <- c("SD", "DA", "high_quality", "med_quality", "low_quality", "FSD_PH", "FSD_S", "locationnumber")
+# Step 1: Clean the correlation matrix by removing unwanted rows and columns
+CA_Cor_clean <- CA_Cor[!(rownames(CA_Cor) %in% location_rows_to_drop), !(colnames(CA_Cor) %in% location_rows_to_drop)]
+
+# Step 2: Extract the correlation values for 'quality'
+CA_quality_corr <- CA_Cor_clean[, "quality"]
+
+# Step 3: Convert the correlation values into a data frame for plotting
+CA_corr_data <- data.frame(
+  Variable = names(CA_quality_corr),
+  Correlation = CA_quality_corr
+)
+
+# Step 4: Remove 'quality' from the data frame
+CA_corr_data <- CA_corr_data[CA_corr_data$Variable != "quality", ]
+
+# Step 4: Plot the correlations using ggplot2
+library(ggplot2)
+
+ggplot(CA_corr_data, aes(x = reorder(Variable, Correlation), y = Correlation)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +  # Flip the axes for better readability
+  labs(title = "CA Wine - Correlation of Variables with Quality",
+       x = "Variables",
+       y = "Correlation with Quality") +
+  theme_minimal()
+
+
+
+#VARIABLE VIZ
+
+#CA
+df_California %>% ggplot(mapping = aes(x = quality, y = density)) + 
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of CA Quality vs Density",
+       x = "Quality",
+       y = "Density")
+
+#Whites
+df_white %>% ggplot(mapping = aes(x = quality, y = density)) + 
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of White Wine Quality vs Density") +
+       xlab("Quality")+
+       ylab("Density") + theme_excel_new() + theme(axis.title = element_text())
+
+#Red
+df_red %>% ggplot(mapping = aes(x = quality, y = density)) + 
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of Red Wine Quality vs Density") +
+  xlab("Quality")+
+  ylab("Density") + theme_excel_new() + theme(axis.title = element_text())
+
+#All
+df %>% ggplot(mapping = aes(x = quality, y = density)) + 
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of All Wine Quality vs Density",
+       x = "Quality",
+       y = "Density")
+
+
+#Texas
+df_Texas %>% ggplot(mapping = aes(x = quality, y = density)) + 
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of Texas Wine Quality vs Density",
+       x = "Quality",
+       y = "Density")
+
+#Red
+df_red %>% ggplot(mapping = aes(x = quality, y = density)) + 
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of Red Wine Quality vs Density",
+       x = "Quality",
+       y = "Density") 
+
+#VOLATILE ACIDITY
+
+# CA
+df_California %>% ggplot(mapping = aes(x = quality, y = volatile.acidity)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of CA Wine Quality vs Volatile Acidity",
+       x = "Quality",
+       y = "Volatile Acidity") 
+
+# Whites
+df_white %>% ggplot(mapping = aes(x = quality, y = volatile.acidity)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of White Wine Quality vs Volatile Acidity",
+       x = "Quality",
+       y = "Volatile Acidity") + theme_excel_new() + theme(axis.title = element_text())
+
+# All
+df %>% ggplot(mapping = aes(x = quality, y = volatile.acidity)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of All Wine Quality vs Volatile Acidity",
+       x = "Quality",
+       y = "Volatile Acidity")
+
+# Texas
+df_Texas %>% ggplot(mapping = aes(x = quality, y = volatile.acidity)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of Texas Wine Quality vs Volatile Acidity",
+       x = "Quality",
+       y = "Volatile Acidity")
+
+# Red
+df_red %>% ggplot(mapping = aes(x = quality, y = volatile.acidity)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of Red Wine Quality vs Volatile Acidity",
+       x = "Quality",
+       y = "Volatile Acidity")+ theme_excel_new() + theme(axis.title = element_text())
+
+#FSD
+
+# CA
+df_California %>% ggplot(mapping = aes(x = quality, y = free.sulfur.dioxide)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of CA Wine Quality vs Free Sulfur Dioxide",
+       x = "Quality",
+       y = "Free Sulfur Dioxide") 
+
+# Whites
+df_white %>% ggplot(mapping = aes(x = quality, y = free.sulfur.dioxide)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of White Wine Quality vs Free Sulfur Dioxide",
+       x = "Quality",
+       y = "Free Sulfur Dioxide") 
+
+# All
+df %>% ggplot(mapping = aes(x = quality, y = free.sulfur.dioxide)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of All Wine Quality vs Free Sulfur Dioxide",
+       x = "Quality",
+       y = "Free Sulfur Dioxide")
+
+# Texas
+df_Texas %>% ggplot(mapping = aes(x = quality, y = free.sulfur.dioxide)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of Texas Wine Quality vs Free Sulfur Dioxide",
+       x = "Quality",
+       y = "Free Sulfur Dioxide")
+
+# Red
+df_red %>% ggplot(mapping = aes(x = quality, y = free.sulfur.dioxide)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Jitterplot of Red Wine Quality vs Free Sulfur Dioxide",
+       x = "Quality",
+       y = "Free Sulfur Dioxide")
+
+
+#new form
+#Quality vs Alcohol - very strong positive correlation
+df_red %>% ggplot(mapping = aes(x = quality, y = alcohol)) + 
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Red Wines - Jitterplot of Quality vs Alcohol",
+       x = "Quality",
+       y = "Alcohol") + theme_excel_new() + theme(axis.title = element_text())
+
+df_Texas %>% ggplot(mapping = aes(x = quality, y = alcohol)) + 
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "Texas Wines - Jitterplot of Quality vs Alcohol",
+       x = "Quality",
+       y = "Alcohol") + theme_excel_new() + theme(axis.title = element_text())
+
+df_California %>% ggplot(mapping = aes(x = quality, y = alcohol)) + 
+  geom_jitter() + geom_smooth(method = "lm", col = "purple") +
+  labs(title = "California Wines - Jitterplot of Quality vs Alcohol",
+       x = "Quality",
+       y = "Alcohol") + theme_excel_new() + theme(axis.title = element_text())
+
+```
